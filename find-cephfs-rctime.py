@@ -2,11 +2,12 @@
 import argparse
 import os
 import sys
+from dateutil.parser import parse
 
 from pprint import pprint
 from multiprocessing import Process, JoinableQueue, Manager
 from multiprocessing.managers import ListProxy
-from itertools import islice
+from itertools import islice, chain
 
 
 def batched(iterable, n):
@@ -36,7 +37,6 @@ def rctime_checker(min_rctime: int, need_rctime_checked: JoinableQueue,
                     rctime = os.getxattr(entry.path, "ceph.dir.rctime", follow_symlinks=False)
                     if min_rctime <= float(rctime):
                         need_rctime_checked_buffer.append(entry.path)
-                    need_rctime_checked_buffer.append(entry.path)
 
         for bunch in batched(need_rctime_checked_buffer, max_chunk_size):
             if bunch:
@@ -60,8 +60,7 @@ def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_match
         stats = [(path, os.stat(path, follow_symlinks=False)) for path in bunch]
         matches = [path for path, stat in stats if stat.st_ctime >= min_ctime]
         if matches:
-            pprint(matches)
-            ctime_matches.append(matches)
+            ctime_matches.append(matches)  # append is faster than extend
 
         need_ctime_checked.task_done()
 
@@ -72,9 +71,12 @@ def main():
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('root_paths', metavar='PATH', nargs='+')
     parser.add_argument('--threads', type=int)
-    parser.add_argument('--min-ctime', type=float)
+    parser.add_argument('--min-ctime')
     args = parser.parse_args()
     pprint(args)
+
+    min_ctime = parse(args.min_ctime)
+    min_ctime = min_ctime.timestamp()
 
     need_ctime_checked = JoinableQueue()
     need_ctime_checked.put(args.root_paths)
@@ -82,13 +84,13 @@ def main():
     need_rctime_checked.put(args.root_paths)
 
     rctime_checkers = [Process(target=rctime_checker,
-                               args=(args.min_ctime, need_rctime_checked, need_ctime_checked,
+                               args=(min_ctime, need_rctime_checked, need_ctime_checked,
                                      100))
                        for _ in range(args.threads)]
 
     ctime_matches = Manager().list()
     ctime_checkers = [Process(target=ctime_checker,
-                              args=(args.min_ctime, need_ctime_checked, ctime_matches))
+                              args=(min_ctime, need_ctime_checked, ctime_matches))
                       for _ in range(args.threads)]
 
     [p.start() for p in rctime_checkers]
@@ -100,17 +102,11 @@ def main():
     need_ctime_checked.join()
     [need_ctime_checked.put(None) for _ in range(args.threads)]
 
-    #need_rctime_checked.join()
-    #need_ctime_checked.join()
-
     [p.join() for p in rctime_checkers]
     [p.join() for p in ctime_checkers]
 
-    #while not ctime_matches.empty():
-    #    bunch = ctime_matches.get()
-    #    pprint(bunch)
-    x = list(ctime_matches)
-    #pprint(x)
+    x = sorted(chain(*ctime_matches))
+    pprint(x)
 
 
 if __name__ == '__main__':
