@@ -50,7 +50,7 @@ def rctime_checker(min_rctime: int, need_rctime_checked: JoinableQueue,
         need_rctime_checked.task_done()
 
 
-def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy, dirs_only: bool):
+def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy):
     while True:
         bunch = need_ctime_checked.get()
 
@@ -73,11 +73,18 @@ def main():
     parser = argparse.ArgumentParser(
             description="",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('root_path', metavar='PATH', nargs=1)
-    parser.add_argument('--threads', type=int)
-    parser.add_argument('--min-ctime')
-    parser.add_argument('--dirs-only', action='store_true')
-    parser.add_argument('--relative', action='store_true')
+    parser.add_argument('root_path', metavar='PATH', nargs=1,
+                        help="Where to look for files")
+    parser.add_argument('--threads', type=int, default=64,
+                        help="number of threads to use")
+    parser.add_argument('--min-ctime', metavar='DATE', required=True,
+                        help="Minimum inclusive ctime as a date in a reasonable format")
+    parser.add_argument('--dirs-only', action='store_true',
+                        help="only print directories whose ctime is at least DATE "
+                             "and directories that contain files whose ctime is "
+                             "at least DATE")
+    parser.add_argument('--relative', action='store_true',
+                        help="print relative paths")
     args = parser.parse_args()
 
     root_path = args.root_path[0].rstrip('/')
@@ -93,13 +100,12 @@ def main():
     rctime_checkers = [Process(target=rctime_checker,
                                args=(min_ctime, need_rctime_checked, need_ctime_checked,
                                      100))
-                       for _ in range(args.threads)]
+                       for _ in range(args.threads//2)]
 
     ctime_matches = Manager().list()
     ctime_checkers = [Process(target=ctime_checker,
-                              args=(min_ctime, need_ctime_checked, ctime_matches,
-                                    args.dirs_only))
-                      for _ in range(args.threads)]
+                              args=(min_ctime, need_ctime_checked, ctime_matches))
+                      for _ in range(args.threads//2)]
 
     [p.start() for p in rctime_checkers]
     [p.start() for p in ctime_checkers]
