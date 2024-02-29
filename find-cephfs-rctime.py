@@ -5,6 +5,7 @@ import sys
 from dateutil.parser import parse
 
 from pprint import pprint
+from pathlib import Path
 from multiprocessing import Process, JoinableQueue, Manager
 from multiprocessing.managers import ListProxy
 from itertools import islice, chain
@@ -49,7 +50,7 @@ def rctime_checker(min_rctime: int, need_rctime_checked: JoinableQueue,
         need_rctime_checked.task_done()
 
 
-def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy):
+def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy, dirs_only: bool):
     while True:
         bunch = need_ctime_checked.get()
 
@@ -59,6 +60,9 @@ def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_match
 
         stats = [(path, os.stat(path, follow_symlinks=False)) for path in bunch]
         matches = [path for path, stat in stats if stat.st_ctime >= min_ctime]
+        # isdir follows symlinks, so both it and islink can be true at the same time
+        matches = [(p + '/' if os.path.isdir(p) and not os.path.islink(p) else p)
+                   for p in matches]
         if matches:
             ctime_matches.append(matches)  # append is faster than extend
 
@@ -69,19 +73,22 @@ def main():
     parser = argparse.ArgumentParser(
             description="",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('root_paths', metavar='PATH', nargs='+')
+    parser.add_argument('root_path', metavar='PATH', nargs=1)
     parser.add_argument('--threads', type=int)
     parser.add_argument('--min-ctime')
+    parser.add_argument('--dirs-only', action='store_true')
+    parser.add_argument('--relative', action='store_true')
     args = parser.parse_args()
-    pprint(args)
+
+    root_path = args.root_path[0].rstrip('/')
 
     min_ctime = parse(args.min_ctime)
     min_ctime = min_ctime.timestamp()
 
     need_ctime_checked = JoinableQueue()
-    need_ctime_checked.put(args.root_paths)
+    need_ctime_checked.put([root_path])
     need_rctime_checked = JoinableQueue()
-    need_rctime_checked.put(args.root_paths)
+    need_rctime_checked.put([root_path])
 
     rctime_checkers = [Process(target=rctime_checker,
                                args=(min_ctime, need_rctime_checked, need_ctime_checked,
@@ -90,7 +97,8 @@ def main():
 
     ctime_matches = Manager().list()
     ctime_checkers = [Process(target=ctime_checker,
-                              args=(min_ctime, need_ctime_checked, ctime_matches))
+                              args=(min_ctime, need_ctime_checked, ctime_matches,
+                                    args.dirs_only))
                       for _ in range(args.threads)]
 
     [p.start() for p in rctime_checkers]
@@ -105,10 +113,16 @@ def main():
     [p.join() for p in rctime_checkers]
     [p.join() for p in ctime_checkers]
 
-    x = sorted(chain(*ctime_matches))
-    pprint(x)
+    results_iter = chain(*ctime_matches)
+    if args.dirs_only:
+        results = sorted(set((path if path.endswith('/') else os.path.dirname(path) + '/')
+                         for path in results_iter))
+    else:
+        results = sorted(results_iter)
+    if args.relative:
+        results = [path.split(root_path + '/', maxsplit=1)[-1] for path in results]
+    print('\n'.join(results))
 
 
 if __name__ == '__main__':
     sys.exit(main())
-
