@@ -73,7 +73,7 @@ def main():
     parser = argparse.ArgumentParser(
             description="",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('root_path', metavar='PATH', nargs=1,
+    parser.add_argument('root_path', metavar='PATH',
                         help="Where to look for files")
     parser.add_argument('--threads', type=int, default=64,
                         help="number of threads to use")
@@ -87,7 +87,7 @@ def main():
                         help="print relative paths")
     args = parser.parse_args()
 
-    root_path = args.root_path[0].rstrip('/')
+    root_path = args.root_path.rstrip('/')
 
     min_ctime = parse(args.min_ctime)
     min_ctime = min_ctime.timestamp()
