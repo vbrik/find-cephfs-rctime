@@ -33,12 +33,19 @@ def rctime_checker(
             return
 
         for dir_path in dirs_batch:
-            for entry in os.scandir(dir_path):
+            try:
+                entries = os.scandir(dir_path)
+            except FileNotFoundError:
+                continue
+            for entry in entries:
                 need_ctime_checked_buffer.append(entry.path)
-                if entry.is_dir(follow_symlinks=False):
-                    rctime = os.getxattr(entry.path, "ceph.dir.rctime", follow_symlinks=False)
-                    if float(rctime) >= min_rctime:
-                        need_rctime_checked_buffer.append(entry.path)
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        rctime = os.getxattr(entry.path, "ceph.dir.rctime", follow_symlinks=False)
+                        if float(rctime) >= min_rctime:
+                            need_rctime_checked_buffer.append(entry.path)
+                except FileNotFoundError:
+                    continue
 
         if need_rctime_checked_buffer:
             for batch in batched(need_rctime_checked_buffer, max_batch_size):
@@ -59,10 +66,18 @@ def ctime_checker(min_ctime: float, need_ctime_checked: JoinableQueue, ctime_mat
             need_ctime_checked.task_done()
             return
 
-        stats = [(path, os.stat(path, follow_symlinks=False)) for path in paths_batch]
-        matches = [path for path, stat in stats if stat.st_ctime >= min_ctime]
-        # isdir follows symlinks, so both it and islink can be true at the same time
-        matches = [(p + "/" if os.path.isdir(p) and not os.path.islink(p) else p) for p in matches]
+        matches = []
+        for path in paths_batch:
+            try:
+                stat = os.stat(path, follow_symlinks=False)
+                if stat.st_ctime >= min_ctime:
+                    # isdir follows symlinks, so both it and islink can be true at the same time
+                    if os.path.isdir(path) and not os.path.islink(path):
+                        path = path + '/'
+                    matches.append(path)
+            except FileNotFoundError:
+                continue
+
         if matches:
             ctime_matches.append(matches)  # append is faster than extend
 
