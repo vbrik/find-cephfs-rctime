@@ -73,7 +73,7 @@ def ctime_checker(min_ctime: float, need_ctime_checked: JoinableQueue, ctime_mat
                 if stat.st_ctime >= min_ctime:
                     # isdir follows symlinks, so both it and islink can be true at the same time
                     if os.path.isdir(path) and not os.path.islink(path):
-                        path = path + '/'
+                        path = path + "/"
                     matches.append(path)
             except FileNotFoundError:
                 continue
