@@ -17,7 +17,7 @@ def batched(iterable, n):
 
 
 def rctime_checker(
-    min_rctime: int,
+    min_rctime: float,
     need_rctime_checked: JoinableQueue,
     need_ctime_checked: JoinableQueue,
     max_batch_size: int,
@@ -51,7 +51,7 @@ def rctime_checker(
         need_rctime_checked.task_done()
 
 
-def ctime_checker(min_ctime: int, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy):
+def ctime_checker(min_ctime: float, need_ctime_checked: JoinableQueue, ctime_matches: ListProxy):
     while True:
         paths_batch = need_ctime_checked.get()
 
@@ -133,7 +133,7 @@ def main():
     ]
     [p.start() for p in ctime_checkers]
 
-    # Wait until all tasks complete. send termination signal, and join children
+    # Wait until all tasks complete, send termination signal, and join children
     need_rctime_checked.join()
     [need_rctime_checked.put(None) for _ in range(args.threads)]
     need_ctime_checked.join()
