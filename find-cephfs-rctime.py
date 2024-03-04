@@ -2,11 +2,10 @@
 import argparse
 import os
 import sys
-from dateutil.parser import parse
-
-from multiprocessing import Process, JoinableQueue, Manager
-from multiprocessing.managers import ListProxy
+from dateutil.parser import parse  # noqa
 from itertools import islice, chain
+from multiprocessing import Process, JoinableQueue, Manager
+from multiprocessing.managers import ListProxy  # noqa
 
 
 def batched(iterable, n):
@@ -71,9 +70,6 @@ def ctime_checker(min_ctime: float, need_ctime_checked: JoinableQueue, ctime_mat
             try:
                 stat = os.stat(path, follow_symlinks=False)
                 if stat.st_ctime >= min_ctime:
-                    # isdir follows symlinks, so both it and islink can be true at the same time
-                    if os.path.isdir(path) and not os.path.islink(path):
-                        path = path + "/"
                     matches.append(path)
             except FileNotFoundError:
                 continue
@@ -87,34 +83,25 @@ def ctime_checker(min_ctime: float, need_ctime_checked: JoinableQueue, ctime_mat
 def main():
     parser = argparse.ArgumentParser(
         description="Use cephfs's ceph.dir.rctime extended attribute to find "
-        "files and/or directories whose ctime is on or after the "
-        "supplied date. NOTE: the --dirs-plus argument will print out directories "
-        "whose ctime may not match the criteria. I ought to make it less confusing "
-        "but am busy right now. ALSO I THINK THERE IS A BUG WITH --DIRS-PLUS: "
-        "WILL IT CORRECTLY PRINT OUT FOO, FOO/BAR, IF BAR IS A NEW EMPTY DIRECTORY?",
+        "files and directories whose ctime is on or after the supplied date.",
         epilog="Notes: "
         "(1) Directory paths will be printed with a trailing slash. "
         "(2) A variety of date formats can be parsed. YYYY-MM-DD is just "
         "one example. To specify Unix time, prepend the number of seconds "
         "with @. "
         "(3) Since this script is IO-bound, it makes sense to use many more "
-        "threads than the number of CPUs.",
+        "threads than the number of CPUs. ",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("root_path", metavar="PATH", help="Where to look for files")
     parser.add_argument(
-        "--min-ctime",
-        metavar="DATE",
-        required=True,
-        help="Minimum inclusive ctime in a reasonable format²",
+        "--min-ctime", metavar="DATE", required=True, help="Minimum ctime in a reasonable format²"
     )
-    parser.add_argument("--relative", action="store_true", help="print paths relative to PATH")
     parser.add_argument(
-        "--dirs-plus",
-        action="store_true",
-        help="print paths of directories that "
-        "(1) have matching ctime, PLUS, "
-        "(2) have files with matching ctimes",
+        "--relative", action="store_true", help="print matching paths relative to PATH"
+    )
+    parser.add_argument(
+        "--parents", action="store_true", help="print only parent directories of matches"
     )
     parser.add_argument(
         "--threads", metavar="NUM", type=int, default=64, help="number of threads to use³"
@@ -122,6 +109,9 @@ def main():
     args = parser.parse_args()
 
     root_path = args.root_path.rstrip("/")
+
+    if not os.path.isdir(root_path):
+        parser.exit(1, "PATH is not a directory or doesn't exist")
 
     if args.min_ctime.startswith("@"):
         min_ctime = float(args.min_ctime[1:])
@@ -131,9 +121,7 @@ def main():
 
     # Work queues
     need_ctime_checked = JoinableQueue()
-    need_ctime_checked.put([root_path])
     need_rctime_checked = JoinableQueue()
-    need_rctime_checked.put([root_path])
 
     rctime_checkers = [
         Process(
@@ -151,26 +139,26 @@ def main():
     ]
     [p.start() for p in ctime_checkers]
 
+    need_ctime_checked.put_nowait([root_path])
+    need_rctime_checked.put_nowait([root_path])
+
     # Wait until all tasks complete, send termination signal, and join children
     need_rctime_checked.join()
     [need_rctime_checked.put(None) for _ in range(args.threads)]
+    [p.join() for p in rctime_checkers]
     need_ctime_checked.join()
     [need_ctime_checked.put(None) for _ in range(args.threads)]
-    [p.join() for p in rctime_checkers]
     [p.join() for p in ctime_checkers]
 
     results_iter = chain(*ctime_matches)
-    if args.dirs_plus:
-        results = sorted(
-            set(
-                (path if path.endswith("/") else os.path.dirname(path) + "/")
-                for path in results_iter
-            )
-        )
+    if args.parents:
+        results = sorted(set(os.path.dirname(path) for path in results_iter))
     else:
         results = sorted(results_iter)
     if args.relative:
         results = [path.split(root_path + "/", maxsplit=1)[-1] for path in results]
+        if root_path in results:
+            results = [(path if path != root_path else ".") for path in results]
     print("\n".join(results))
 
 
