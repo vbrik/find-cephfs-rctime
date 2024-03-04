@@ -90,7 +90,8 @@ def main():
         "files and/or directories whose ctime is on or after the "
         "supplied date. NOTE: the --dirs-plus argument will print out directories "
         "whose ctime may not match the criteria. I ought to make it less confusing "
-        "but am busy right now.",
+        "but am busy right now. ALSO I THINK THERE IS A BUG WITH --DIRS-PLUS: "
+        "WILL IT CORRECTLY PRINT OUT FOO, FOO/BAR, IF BAR IS A NEW EMPTY DIRECTORY?",
         epilog="Notes: "
         "(1) Directory paths will be printed with a trailing slash. "
         "(2) A variety of date formats can be parsed. YYYY-MM-DD is just "
