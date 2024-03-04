@@ -88,7 +88,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Use cephfs's ceph.dir.rctime extended attribute to find "
         "files and/or directories whose ctime is on or after the "
-        "supplied date.",
+        "supplied date. NOTE: the --dirs-plus argument will print out directories "
+        "whose ctime may not match the criteria. I ought to make it less confusing "
+        "but am busy right now.",
         epilog="Notes: "
         "(1) Directory paths will be printed with a trailing slash. "
         "(2) A variety of date formats can be parsed. YYYY-MM-DD is just "
@@ -107,10 +109,10 @@ def main():
     )
     parser.add_argument("--relative", action="store_true", help="print paths relative to PATH")
     parser.add_argument(
-        "--dirs-only",
+        "--dirs-plus",
         action="store_true",
-        help="only print paths of directories that either "
-        "(1) have matching ctime, OR, "
+        help="print paths of directories that "
+        "(1) have matching ctime, PLUS, "
         "(2) have files with matching ctimes",
     )
     parser.add_argument(
@@ -157,7 +159,7 @@ def main():
     [p.join() for p in ctime_checkers]
 
     results_iter = chain(*ctime_matches)
-    if args.dirs_only:
+    if args.dirs_plus:
         results = sorted(
             set(
                 (path if path.endswith("/") else os.path.dirname(path) + "/")
