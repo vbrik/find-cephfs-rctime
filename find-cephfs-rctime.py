@@ -85,17 +85,16 @@ def main():
         description="Use cephfs's ceph.dir.rctime extended attribute to find "
         "files and directories whose ctime is on or after the supplied date.",
         epilog="Notes: "
-        "(1) Directory paths will be printed with a trailing slash. "
-        "(2) A variety of date formats can be parsed. YYYY-MM-DD is just "
+        "(1) A variety of date formats can be parsed. YYYY-MM-DD is just "
         "one example. To specify Unix time, prepend the number of seconds "
         "with @. "
-        "(3) Since this script is IO-bound, it makes sense to use many more "
+        "(2) Since this script is IO-bound, it makes sense to use many more "
         "threads than the number of CPUs. ",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("root_path", metavar="PATH", help="Where to look for files")
     parser.add_argument(
-        "--min-ctime", metavar="DATE", required=True, help="Minimum ctime in a reasonable format²"
+        "--min-ctime", metavar="DATE", required=True, help="Minimum ctime in a reasonable format¹"
     )
     parser.add_argument(
         "--relative", action="store_true", help="print matching paths relative to PATH"
@@ -104,7 +103,7 @@ def main():
         "--parents", action="store_true", help="print only parent directories of matches"
     )
     parser.add_argument(
-        "--threads", metavar="NUM", type=int, default=64, help="number of threads to use³"
+        "--threads", metavar="NUM", type=int, default=64, help="number of threads to use²"
     )
     args = parser.parse_args()
 
