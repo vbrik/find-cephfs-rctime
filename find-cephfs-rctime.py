@@ -151,9 +151,9 @@ def main():
 
     results_iter = chain(*ctime_matches)
     if args.parents:
-        results = sorted(set(os.path.dirname(path) for path in results_iter))
+        results = sorted(set(os.path.dirname(path) for path in results_iter), reverse=True)
     else:
-        results = sorted(results_iter)
+        results = sorted(results_iter, reverse=True)
     if args.relative:
         results = [path.split(root_path + "/", maxsplit=1)[-1] for path in results]
         if root_path in results:
