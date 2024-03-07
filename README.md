@@ -2,6 +2,8 @@ This script uses cephfs's ceph.dir.rctime extended attribute to find files and d
 
 The script is very fast (for python) because it's multithreaded (uses multiprocessing) and ceph.dir.rctime allows it to quickly zero-in on files of interest.
 
+The output is meant to be suitable for `rsync --files-from`.
+
 ```
 $ ./find-cephfs-rctime.py -h
 usage: find-cephfs-rctime.py [-h] --min-ctime DATE [--relative] [--parents] [--threads NUM] PATH
